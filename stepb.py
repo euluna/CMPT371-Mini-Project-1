@@ -2,7 +2,7 @@ import datetime
 import socket
 import threading
 import os
-from email.utils import parsedate_to_datetime
+from email.utils import parsedate_to_datetime, formatdate
 from datetime import datetime, timezone
 
 PORT = 8000
@@ -12,22 +12,23 @@ def print_response(status_code, msg):
     reason = {
         200: "OK",
         304: "Not Modified",
+        400: "Bad Request", #added
         403: "Forbidden",
         404: "Not Found",
         505: "HTTP Version Not Supported"
     }
 
     body = {
+        200: msg,
+        304: "<h1>304 Not Modified</h1>",
         400: "<h1>400 Bad Request</h1>",
         403: "<h1>403 Forbidden</h1>",
         404: "<h1>404 Not Found</h1>",
         505: "<h1>505 HTTP Version Not Supported</h1>",
-        200: msg,
-        304: "<h1>304 Not Modified</h1>"
     }
 
     header = f"HTTP/1.1 {status_code} {reason[status_code]}\r\n"
-    header += f"Date: {str(datetime.now())}\r\n"
+    header += f"Date: {formatdate(usegmt=True)}\r\n" #use GMT
     header += "Server: Webserver\r\n"
     header += f"Content-Type: text/html\r\n"
     header += f"Content-Length: {len(body[status_code].encode())}\r\n"
@@ -38,11 +39,11 @@ def print_response(status_code, msg):
 def make_client_thread(sk, addr):
     print(f"[CONNECTED] {addr}")
     try:
-        while True:
+        # while True:
             request = sk.recv(1024)
             if not request:
                 print(f"[DISCONNECTED] {addr}")
-                break
+                # break
             request_decoded = request.decode(errors='ignore')
             print(f"[REQUEST] from {addr}:\n{request_decoded}")
 
