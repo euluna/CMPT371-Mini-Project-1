@@ -1,3 +1,8 @@
+# CMPT 371 - Mini Project
+# 29 Oct 2025
+# Alfred Goh
+# Euluna Gotami
+
 import datetime
 import socket
 import threading
