@@ -1,14 +1,11 @@
-import datetime
 import socket
 import threading
-import os
-from email.utils import parsedate_to_datetime, formatdate
-from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 PORT = 8888
+CACHE = {}
 
-def read_until_double_crlf(sock): #makes sure get entire thing
+def read_until_double_crlf(sock): # makes sure get entire thing
     data = b''
     while b'\r\n\r\n' not in data:
         chunk = sock.recv(4096)
@@ -22,7 +19,7 @@ def read_until_double_crlf(sock): #makes sure get entire thing
 
 def parse_headers(header_text):
     lines = header_text.split('\r\n')
-    request_line = lines[0] if lines else '' #first request line
+    request_line = lines[0] if lines else '' # first request line
     headers = {}
     for line in lines[1:]:
         if not line:
@@ -51,8 +48,8 @@ def determine_target_and_path(request_line, headers):
     return method, host, port, path, version
 
 def build_request(method, path, version, headers):
-    lines = [f"{method} {path} {version}"] #request line
-    for name, value in headers.items(): #each header
+    lines = [f"{method} {path} {version}"] # request line
+    for name, value in headers.items(): # each header
         lines.append(f"{name}: {value}")
     lines.append('')
     header_block = '\r\n'.join(lines)
@@ -78,6 +75,14 @@ def handle_client(client_sock, addr):
             return
         method, host, port, path, version = result
 
+        # Check cache
+        url = f"{host}:{port}{path}"
+        if url in CACHE:
+            print(f"[CACHE HIT] {url}")
+            client_sock.sendall(CACHE[url])
+            client_sock.close()
+            return
+
         safe_headers = strip_hop_by_hop(headers)
         safe_headers['host'] = f"{host}:{port}" if port not in (80, 443) else host
 
@@ -99,12 +104,18 @@ def handle_client(client_sock, addr):
             with socket.create_connection((host, port), timeout=10) as upstream:
                 upstream.sendall(request_bytes) # send request to origin
                 
-                # stream response from origin back to client
+                # Collect response and stream to client
+                response_data = b''
                 while True:
                     data = upstream.recv(4096)
                     if not data:
                         break
+                    response_data += data
                     client_sock.sendall(data)
+                
+                # Store in cache
+                CACHE[url] = response_data
+                print(f"[CACHE STORED] {url}")
         except Exception as e:
             print(f"[PROXY] Upstream error for {host}:{port}: {e}")
             client_sock.sendall(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\nContent-Length: 11\r\n\r\nBad Gateway")
